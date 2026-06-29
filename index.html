@@ -106,9 +106,58 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
 .hov-g{background:rgba(63,185,80,.15);color:#3fb950}
 .hov-r{background:rgba(248,81,73,.15);color:#f85149}
 .hov-y{background:rgba(210,153,34,.15);color:#d29922}
+/* Share modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:28px 28px 24px;max-width:560px;width:90%;position:relative}
+.modal h2{font-size:16px;font-weight:700;color:#fff;margin-bottom:6px}
+.modal p{font-size:12px;color:rgba(255,255,255,.4);margin-bottom:16px}
+.modal-url{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px 12px;font-size:11px;color:#58a6ff;word-break:break-all;line-height:1.6;font-family:monospace;margin-bottom:14px;user-select:all}
+.modal-actions{display:flex;gap:10px}
+.btn-modal-copy{background:#238636;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer}
+.btn-modal-copy:hover{background:#2ea043}
+.btn-modal-close{background:#21262d;color:rgba(255,255,255,.6);border:1px solid #30363d;border-radius:6px;padding:8px 18px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer}
+.btn-modal-close:hover{background:#30363d;color:#fff}
+.modal-copied{font-size:11px;color:#3fb950;align-self:center;display:none}
+.btn-share{background:none;border:1px solid #30363d;color:rgba(255,255,255,.5);border-radius:4px;font-family:'Inter',sans-serif;font-size:10px;font-weight:600;padding:2px 8px;cursor:pointer;transition:all .15s;margin-left:8px}
+.btn-share:hover{border-color:#58a6ff;color:#58a6ff}
+/* Report view (read-only) */
+.report-view{display:none;position:fixed;inset:0;background:#0f1117;z-index:2000;overflow-y:auto}
+.report-view.open{display:block}
+.report-wrap{max-width:960px;margin:0 auto;padding:40px 32px 80px}
+.report-header{margin-bottom:32px}
+.report-title{font-size:24px;font-weight:800;color:#fff;margin-bottom:4px}
+.report-sub{font-size:12px;color:rgba(255,255,255,.35)}
+.report-acc{margin-bottom:36px}
+.report-acc-name{font-size:15px;font-weight:700;color:#e6edf3;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #21262d}
 </style>
 </head>
 <body>
+<!-- Share modal -->
+<div class="modal-bg" id="shareModal">
+  <div class="modal">
+    <h2>Share report</h2>
+    <p>Trimite link-ul clientului — se deschide ca raport read-only, fără cont necesar.</p>
+    <div class="modal-url" id="shareUrl"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-copy" id="btnModalCopy">Copy link</button>
+      <button class="btn-modal-close" id="btnModalClose">Close</button>
+      <span class="modal-copied" id="modalCopied">Copied!</span>
+    </div>
+  </div>
+</div>
+
+<!-- Report view (read-only for client) -->
+<div class="report-view" id="reportView">
+  <div class="report-wrap">
+    <div class="report-header">
+      <div class="report-title" id="reportTitle">PPC Weekly Report</div>
+      <div class="report-sub" id="reportSub"></div>
+    </div>
+    <div id="reportContent"></div>
+  </div>
+</div>
+
 <div class="wrap">
 
 <h1>PPC Weekly Importer <span id="lsStatusBadge"></span></h1>
@@ -972,7 +1021,7 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
       var accId = acc.replace(/[^a-z0-9]/gi,'_');
 
       html += '<div class="hov-acc">';
-      html += '<div class="hov-acc-name">'+acc+' <span style="font-size:10px;font-weight:400;color:rgba(255,255,255,.3)">'+hist.length+' week'+(hist.length>1?'s':'')+'</span></div>';
+      html += '<div class="hov-acc-name">'+acc+' <span style="font-size:10px;font-weight:400;color:rgba(255,255,255,.3)">'+hist.length+' week'+(hist.length>1?'s':'')+'</span><button class="btn-share" data-share-acc="'+acc+'">&#128279; Share report</button></div>';
       html += '<div class="hov-table-wrap" style="border-radius:8px"><table class="hov-table"><thead><tr>';
       html += '<th>Week</th><th>Spend</th><th>PPC Sales</th><th>Total Sales</th><th>Orders</th><th>Clicks</th><th>CPC</th><th>CTR</th><th>ACOS</th><th>TACOS</th><th>CVR</th><th></th>';
       html += '</tr></thead><tbody>';
@@ -1066,6 +1115,90 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
         window.location.reload();
       }
     } catch(e) { console.warn('inject error', e); }
+  })();
+
+  // -- Share & Report view ---------------------------------------------------
+  function openShareModal(acc) {
+    var hist = getHistory(acc);
+    if (!hist || hist.length === 0) return;
+    var payload = btoa(unescape(encodeURIComponent(JSON.stringify({account: acc, weeks: hist}))));
+    var url = window.location.origin + window.location.pathname + '#view=' + payload;
+    document.getElementById('shareUrl').textContent = url;
+    document.getElementById('shareModal').classList.add('open');
+  }
+
+  document.getElementById('btnModalCopy').addEventListener('click', function() {
+    var url = document.getElementById('shareUrl').textContent;
+    navigator.clipboard.writeText(url).then(function() {
+      var el = document.getElementById('modalCopied');
+      el.style.display = 'inline';
+      setTimeout(function(){ el.style.display = 'none'; }, 2000);
+    });
+  });
+
+  document.getElementById('btnModalClose').addEventListener('click', function() {
+    document.getElementById('shareModal').classList.remove('open');
+  });
+
+  document.getElementById('shareModal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open');
+  });
+
+  // Share button clicks (delegated — buttons are inside hovContent)
+  document.getElementById('hovContent').addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-share-acc]');
+    if (btn) { e.stopPropagation(); openShareModal(btn.getAttribute('data-share-acc')); }
+  });
+
+  // -- Report view (read-only for client) ------------------------------------
+  function renderReportView(acc, weeks) {
+    var tgt = {acos: 12, tacos: 5}; // defaults for client view
+    weeks.sort(function(a,b){ return b.week.localeCompare(a.week); });
+
+    document.getElementById('reportTitle').textContent = acc + ' — PPC Weekly Report';
+    document.getElementById('reportSub').textContent = weeks.length + ' week' + (weeks.length>1?'s':'') + ' · Generated by Insiders Agency';
+
+    var thS = function(t){ return '<th style="font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.3);padding:8px 14px;text-align:left;background:#0d1117;border-bottom:1px solid #30363d;white-space:nowrap">'+t+'</th>'; };
+    var html = '<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden;overflow-x:auto">';
+    html += '<table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums"><thead><tr>';
+    html += thS('Week')+thS('Spend')+thS('PPC Sales')+thS('Total Sales')+thS('Orders')+thS('Clicks')+thS('CPC')+thS('CTR')+thS('ACOS')+thS('TACOS')+thS('CVR');
+    html += '</tr></thead><tbody>';
+
+    for (var i = 0; i < weeks.length; i++) {
+      var h = weeks[i];
+      var acosCol = h.acos > 0.2 ? '#f85149' : h.acos > 0.12 ? '#d29922' : '#3fb950';
+      var tacosCol = h.tacos > 0.1 ? '#f85149' : h.tacos > 0.05 ? '#d29922' : '#3fb950';
+      var cpc = (h.clicks||0)>0 ? (h.spend||0)/(h.clicks||1) : 0;
+      html += '<tr style="border-bottom:1px solid #21262d">';
+      html += '<td style="font-size:12px;font-weight:600;color:#fff;padding:9px 14px">'+h.week+'</td>';
+      html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">&#8364;'+fmt(h.spend||0)+'</td>';
+      html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">&#8364;'+fmt(h.ppcSales||0)+'</td>';
+      html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">&#8364;'+fmt(h.totalSales||0)+'</td>';
+      html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">'+fmtN(h.orders||0)+'</td>';
+      html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">'+fmtN(h.clicks||0)+'</td>';
+      html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">&#8364;'+fmt(cpc)+'</td>';
+      html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">'+(((h.ctr||0)*100).toFixed(3))+'%</td>';
+      html += '<td style="font-size:12px;font-weight:700;color:'+acosCol+';padding:9px 14px">'+(((h.acos||0)*100).toFixed(1))+'%</td>';
+      html += '<td style="font-size:12px;font-weight:700;color:'+tacosCol+';padding:9px 14px">'+(((h.tacos||0)*100).toFixed(1))+'%</td>';
+      html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">'+(((h.cvr||0)*100).toFixed(1))+'%</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    document.getElementById('reportContent').innerHTML = html;
+    document.getElementById('reportView').classList.add('open');
+  }
+
+  // Check for #view= on load
+  (function() {
+    try {
+      var hash = window.location.hash;
+      if (hash && hash.indexOf('#view=') === 0) {
+        var b64 = hash.slice(6);
+        var json = JSON.parse(decodeURIComponent(escape(atob(b64))));
+        history.replaceState(null, '', window.location.pathname);
+        renderReportView(json.account, json.weeks);
+      }
+    } catch(e) { console.warn('view error', e); }
   })();
 
   // -- Init ------------------------------------------------------------------
