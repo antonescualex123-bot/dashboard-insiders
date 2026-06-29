@@ -121,6 +121,12 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
 .modal-copied{font-size:11px;color:#3fb950;align-self:center;display:none}
 .btn-share{background:none;border:1px solid #30363d;color:rgba(255,255,255,.5);border-radius:4px;font-family:'Inter',sans-serif;font-size:10px;font-weight:600;padding:2px 8px;cursor:pointer;transition:all .15s;margin-left:8px}
 .btn-share:hover{border-color:#58a6ff;color:#58a6ff}
+/* Tabs */
+.tabs{display:flex;gap:0;margin-bottom:28px;border-bottom:1px solid #30363d}
+.tab-btn{background:none;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.4);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;padding:10px 20px;cursor:pointer;margin-bottom:-1px;transition:all .15s}
+.tab-btn.active{color:#fff;border-bottom-color:#58a6ff}
+.tab-btn:hover:not(.active){color:rgba(255,255,255,.7)}
+.tab-pane{display:none}.tab-pane.active{display:block}
 /* Report view (read-only) */
 .report-view{display:none;position:fixed;inset:0;background:#0f1117;z-index:2000;overflow-y:auto}
 .report-view.open{display:block}
@@ -161,8 +167,16 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
 
 <div class="wrap">
 
-<h1>PPC Weekly Importer <span id="lsStatusBadge"></span></h1>
+<h1>PPC Importer <span id="lsStatusBadge"></span></h1>
 <p class="subtitle">Upload Bulk + Business Report &rarr; extract metrics &rarr; paste into DATA sheet</p>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="weekly">Weekly</button>
+  <button class="tab-btn" data-tab="monthly">Monthly</button>
+</div>
+
+<!-- WEEKLY TAB -->
+<div class="tab-pane active" id="tab-weekly">
 
 <div class="sec">History overview <span id="hovCount" style="font-size:10px;color:rgba(255,255,255,.25);font-weight:400;text-transform:none;letter-spacing:0"></span></div>
 <div class="panel hov-wrap" id="hovPanel">
@@ -274,7 +288,17 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
-</div>
+</div><!-- /tab-pane weekly -->
+
+<!-- MONTHLY TAB -->
+<div class="tab-pane" id="tab-monthly">
+  <div class="sec">Monthly overview <span id="mhovCount" style="font-size:10px;color:rgba(255,255,255,.25);font-weight:400;text-transform:none;letter-spacing:0"></span></div>
+  <div class="panel hov-wrap" id="mhovPanel">
+    <div id="mhovContent"></div>
+  </div>
+</div><!-- /tab-pane monthly -->
+
+</div><!-- /wrap -->
 <script>
 (function() {
   // -- localStorage wrapper with error handling & diagnostics ----------------
@@ -519,9 +543,15 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
 
   // -- History ---------------------------------------------------------------
   function historyKey(acc) { return 'ppc_hb_' + acc.replace(/[^a-z0-9]/gi,'_'); }
+  function mhistoryKey(acc) { return 'ppc_mhb_' + acc.replace(/[^a-z0-9]/gi,'_'); }
 
   function getHistory(acc) {
     var saved = lsGet(historyKey(acc));
+    if (!saved) return [];
+    try { return JSON.parse(saved); } catch(e) { return []; }
+  }
+  function getMonthlyHistory(acc) {
+    var saved = lsGet(mhistoryKey(acc));
     if (!saved) return [];
     try { return JSON.parse(saved); } catch(e) { return []; }
   }
@@ -532,6 +562,20 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
     hist.sort(function(a,b) { return a.week.localeCompare(b.week); });
     if (hist.length > 52) hist = hist.slice(-52);
     lsSet(historyKey(acc), JSON.stringify(hist));
+  }
+  function saveToMonthlyHistory(acc, data) {
+    var hist = getMonthlyHistory(acc).filter(function(h) { return h.week !== data.week; });
+    hist.push(data);
+    hist.sort(function(a,b) { return a.week.localeCompare(b.week); });
+    if (hist.length > 60) hist = hist.slice(-60);
+    lsSet(mhistoryKey(acc), JSON.stringify(hist));
+  }
+
+  function fmtMonth(iso) {
+    var m = iso.match(/^(\d{4})-M(\d{2})$/);
+    if (!m) return iso;
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[parseInt(m[2])-1] + ' ' + m[1];
   }
 
   // -- File handlers ---------------------------------------------------------
@@ -1099,19 +1143,19 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
         var json = JSON.parse(atob(b64));
         var acc = json.account;
         var entry = json.data;
-        // Save to history
+        var isMonthly = json.period_type === 'monthly';
+        var hKey = isMonthly ? mhistoryKey(acc) : historyKey(acc);
+        var maxLen = isMonthly ? 60 : 52;
         var hist = [];
-        try { hist = JSON.parse(lsGet(historyKey(acc)) || '[]'); } catch(e) {}
+        try { hist = JSON.parse(lsGet(hKey) || '[]'); } catch(e) {}
         hist = hist.filter(function(h){ return h.week !== entry.week; });
         hist.push(entry);
         hist.sort(function(a,b){ return a.week.localeCompare(b.week); });
-        if (hist.length > 52) hist = hist.slice(-52);
-        lsSet(historyKey(acc), JSON.stringify(hist));
-        // Ensure account is in list
+        if (hist.length > maxLen) hist = hist.slice(-maxLen);
+        lsSet(hKey, JSON.stringify(hist));
         var accs = [];
         try { accs = JSON.parse(lsGet('ppc_accounts_b') || '[]'); } catch(e) {}
         if (accs.indexOf(acc) === -1) { accs.push(acc); lsSet('ppc_accounts_b', JSON.stringify(accs)); }
-        // Clean URL and reload
         history.replaceState(null, '', window.location.pathname);
         window.location.reload();
       }
@@ -1351,6 +1395,211 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
       }
     } catch(e) { console.warn('view error', e); }
   })();
+
+  // -- Monthly Overview ------------------------------------------------------
+  var _mhovSelected = {};
+
+  function renderMonthlyOverview() {
+    var content = document.getElementById('mhovContent');
+    var countEl = document.getElementById('mhovCount');
+    if (!content) return;
+    var totalMonths = 0;
+    var html = '';
+
+    for (var ai = 0; ai < accounts.length; ai++) {
+      var acc = accounts[ai];
+      var hist = getMonthlyHistory(acc);
+      if (!hist || hist.length === 0) continue;
+      hist.sort(function(a,b){ return b.week.localeCompare(a.week); });
+      totalMonths += hist.length;
+      var tgt = getTargets(acc);
+      var acosT = tgt.acos / 100;
+      var tacosT = tgt.tacos / 100;
+
+      html += '<div class="hov-acc">';
+      html += '<div class="hov-acc-name">'+acc+' <span style="font-size:10px;font-weight:400;color:rgba(255,255,255,.3)">'+hist.length+' month'+(hist.length>1?'s':'')+'</span><button class="btn-share" data-share-acc="'+acc+'" data-share-type="monthly">&#128279; Share report</button></div>';
+      html += '<div class="hov-table-wrap" style="border-radius:8px"><table class="hov-table"><thead><tr>';
+      html += '<th>Month</th><th>Spend</th><th>PPC Sales</th><th>Total Sales</th><th>Orders</th><th>Clicks</th><th>CPC</th><th>CTR</th><th>ACOS</th><th>TACOS</th><th>CVR</th><th></th>';
+      html += '</tr></thead><tbody>';
+
+      for (var hi = 0; hi < hist.length; hi++) {
+        var h = hist[hi];
+        var acosCol = h.acos > acosT*1.5 ? 'hov-r' : h.acos > acosT ? 'hov-y' : 'hov-g';
+        var tacosCol = h.tacos > tacosT*1.5 ? 'hov-r' : h.tacos > tacosT ? 'hov-y' : 'hov-g';
+        var isOpen = _mhovSelected[acc] === h.week;
+        var hCpc = (h.clicks||0)>0 ? (h.spend||0)/(h.clicks||1) : 0;
+        html += '<tr class="mhov-data-row" data-acc="'+acc+'" data-week="'+h.week+'" style="cursor:pointer;'+(isOpen?'background:rgba(88,166,255,.05)':'')+'">';
+        html += '<td style="font-weight:600;color:#58a6ff">'+fmtMonth(h.week)+(isOpen?' ▲':' ▼')+'</td>';
+        html += '<td>&#8364;'+fmt(h.spend||0)+'</td>';
+        html += '<td>&#8364;'+fmt(h.ppcSales||0)+'</td>';
+        html += '<td>&#8364;'+fmt(h.totalSales||0)+'</td>';
+        html += '<td>'+fmtN(h.orders||0)+'</td>';
+        html += '<td>'+fmtN(h.clicks||0)+'</td>';
+        html += '<td>&#8364;'+fmt(hCpc)+'</td>';
+        html += '<td>'+(((h.ctr||0)*100).toFixed(3))+'%</td>';
+        html += '<td><span class="hov-tag '+acosCol+'">'+pct(h.acos||0)+'</span></td>';
+        html += '<td><span class="hov-tag '+tacosCol+'">'+pct(h.tacos||0)+'</span></td>';
+        html += '<td>'+pct(h.cvr||0)+'</td>';
+        html += '<td><button class="mhov-del" data-acc="'+acc+'" data-week="'+h.week+'" title="Delete">&#x2715;</button></td>';
+        html += '</tr>';
+        if (isOpen) {
+          // Reuse renderHovDetail but pass monthly history as context
+          var mhist = getMonthlyHistory(acc);
+          mhist.sort(function(a,b){ return a.week.localeCompare(b.week); });
+          html += '<tr><td colspan="12" style="padding:0">'+renderHovDetailFromHist(h, mhist, acc)+'</td></tr>';
+        }
+      }
+      html += '</tbody></table></div></div>';
+    }
+
+    if (html === '') {
+      content.innerHTML = '<div class="hov-empty">No monthly data yet. Use PPC_Manual_RUN.bat → select Monthly to import.</div>';
+      countEl.textContent = '';
+    } else {
+      content.innerHTML = html;
+      countEl.textContent = '— '+totalMonths+' month'+(totalMonths>1?'s':'');
+
+      var rows = content.querySelectorAll('.mhov-data-row');
+      for (var ri = 0; ri < rows.length; ri++) {
+        rows[ri].addEventListener('click', function(e) {
+          if (e.target.classList.contains('mhov-del')) return;
+          var a = this.getAttribute('data-acc');
+          var w = this.getAttribute('data-week');
+          _mhovSelected[a] = (_mhovSelected[a] === w) ? null : w;
+          renderMonthlyOverview();
+        });
+      }
+      var dels = content.querySelectorAll('.mhov-del');
+      for (var di = 0; di < dels.length; di++) {
+        dels[di].addEventListener('click', function(e) {
+          e.stopPropagation();
+          var a = this.getAttribute('data-acc');
+          var w = this.getAttribute('data-week');
+          var h2 = getMonthlyHistory(a).filter(function(x){ return x.week !== w; });
+          lsSet(mhistoryKey(a), JSON.stringify(h2));
+          if (_mhovSelected[a] === w) _mhovSelected[a] = null;
+          renderMonthlyOverview();
+        });
+      }
+    }
+  }
+
+  // Refactored detail renderer that accepts history array directly
+  function renderHovDetailFromHist(d, sortedHist, acc) {
+    var tgt = getTargets(acc);
+    var acosTarget = tgt.acos / 100;
+    var html = '<div style="background:#0d1117;border:1px solid #30363d;border-top:none;border-radius:0 0 8px 8px;padding:16px 18px 18px">';
+
+    if (d.breakdown && d.breakdown.length > 0) {
+      html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.35);letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px">Campaign breakdown</div>';
+      html += '<div style="overflow-x:auto;margin-bottom:18px"><table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums">';
+      var th = function(t){ return '<th style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:rgba(255,255,255,.3);padding:6px 10px;text-align:left;background:#161b22;border-bottom:1px solid #30363d;white-space:nowrap">'+t+'</th>'; };
+      html += '<thead><tr>'+th('Type')+th('Impr.')+th('Clicks')+th('Spend')+th('PPC Sales')+th('Orders')+th('ACOS')+th('CVR')+'</tr></thead><tbody>';
+      var ti=0,tc=0,ts=0,tsa=0,to=0;
+      for (var bi = 0; bi < d.breakdown.length; bi++) {
+        var r = d.breakdown[bi];
+        var a2 = r.sal>0?r.spd/r.sal:0, cv2 = r.clk>0?r.ord/r.clk:0;
+        html += '<tr><td style="font-size:12px;font-weight:600;color:#fff;padding:6px 10px;border-bottom:1px solid #21262d">'+r.label+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">'+fmtN(r.imp)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">'+fmtN(r.clk)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">&#8364;'+fmt(r.spd)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">&#8364;'+fmt(r.sal)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">'+fmtN(r.ord)+'</td>'+
+          '<td style="font-size:12px;font-weight:700;color:'+(a2>0.2?'#f85149':a2>=acosTarget?'#d29922':'#3fb950')+';padding:6px 10px;border-bottom:1px solid #21262d">'+pct(a2)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">'+pct(cv2)+'</td></tr>';
+        ti+=r.imp;tc+=r.clk;ts+=r.spd;tsa+=r.sal;to+=r.ord;
+      }
+      var ta2=tsa>0?ts/tsa:0,tcv2=tc>0?to/tc:0;
+      html += '<tr><td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">TOTAL</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">'+fmtN(ti)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">'+fmtN(tc)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">&#8364;'+fmt(ts)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">&#8364;'+fmt(tsa)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">'+fmtN(to)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:'+(ta2>0.2?'#f85149':ta2>=acosTarget?'#d29922':'#3fb950')+';padding:6px 10px">'+pct(ta2)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">'+pct(tcv2)+'</td></tr>';
+      html += '</tbody></table></div>';
+    }
+
+    var idx = -1;
+    for (var si = 0; si < sortedHist.length; si++) { if (sortedHist[si].week === d.week) { idx = si; break; } }
+    var last4 = sortedHist.slice(Math.max(0,idx-3), idx+1).reverse();
+
+    if (last4.length >= 1) {
+      html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.35);letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px">Period-over-period trend</div>';
+      html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums">';
+      var thS2 = function(t,hl){ return '<th style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:'+(hl?'#fff':'rgba(255,255,255,.3)')+';padding:6px 10px;text-align:left;background:#161b22;border-bottom:1px solid #30363d;white-space:nowrap">'+t+'</th>'; };
+      var thead3 = '<thead><tr>'+thS2('Metric');
+      for (var wi3 = 0; wi3 < last4.length; wi3++) {
+        var lbl3 = last4[wi3].week.match(/^\d{4}-M/) ? fmtMonth(last4[wi3].week) : last4[wi3].week;
+        thead3 += thS2(lbl3+(last4[wi3].week===d.week?' ✓':''), last4[wi3].week===d.week);
+        if (wi3 < last4.length-1) thead3 += thS2('Δ');
+      }
+      thead3 += '</tr></thead>';
+      html += thead3 + '<tbody>';
+      var metrics2 = [
+        {lbl:'Spend',key:'spend',f:'e',gu:false},{lbl:'PPC Sales',key:'ppcSales',f:'e',gu:true},
+        {lbl:'Total Sales',key:'totalSales',f:'e',gu:true},{lbl:'Orders',key:'orders',f:'n',gu:true},
+        {lbl:'Clicks',key:'clicks',f:'n',gu:true},{lbl:'CPC',key:'cpc',f:'e',gu:false},
+        {lbl:'CTR',key:'ctr',f:'p',gu:true},{lbl:'ACOS',key:'acos',f:'p',gu:false},
+        {lbl:'TACOS',key:'tacos',f:'p',gu:false},{lbl:'CVR',key:'cvr',f:'p',gu:true},
+      ];
+      for (var mi2 = 0; mi2 < metrics2.length; mi2++) {
+        var m2 = metrics2[mi2];
+        html += '<tr><td style="font-size:12px;font-weight:600;color:#fff;padding:6px 10px;border-bottom:1px solid #21262d">'+m2.lbl+'</td>';
+        for (var wi4 = 0; wi4 < last4.length; wi4++) {
+          var wk2 = last4[wi4];
+          var val2 = m2.key==='cpc'?(wk2.clicks>0?wk2.spend/wk2.clicks:0):(wk2[m2.key]||0);
+          var isCW3 = wk2.week===d.week;
+          var fv2 = m2.f==='e'?'&#8364;'+fmt(val2):m2.f==='p'?pct(val2):fmtN(val2);
+          html += '<td style="font-size:12px;padding:6px 10px;border-bottom:1px solid #21262d;'+(isCW3?'color:#fff;font-weight:600':'color:rgba(255,255,255,.55)')+'">'+fv2+'</td>';
+          if (wi4 < last4.length-1) {
+            var nwk2 = last4[wi4+1];
+            var pv3 = m2.key==='cpc'?(nwk2.clicks>0?nwk2.spend/nwk2.clicks:0):(nwk2[m2.key]||0);
+            var delta2 = pv3>0?(val2/pv3-1):0;
+            var isUp2=delta2>0.005,isDn2=delta2<-0.005;
+            var imp4=(isUp2&&m2.gu)||(isDn2&&!m2.gu),wrs4=(isDn2&&m2.gu)||(isUp2&&!m2.gu);
+            var cls4=imp4?'tag-g':wrs4?'tag-r':'tag-n';
+            var txt4=isUp2?('+'+pct(delta2)):isDn2?pct(delta2):'&#8212;';
+            html += '<td style="padding:6px 10px;border-bottom:1px solid #21262d"><span class="tag '+cls4+'">'+txt4+'</span></td>';
+          }
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  // -- Tab switching ---------------------------------------------------------
+  var tabBtns = document.querySelectorAll('.tab-btn');
+  for (var tbi = 0; tbi < tabBtns.length; tbi++) {
+    tabBtns[tbi].addEventListener('click', function() {
+      var tab = this.getAttribute('data-tab');
+      for (var i = 0; i < tabBtns.length; i++) tabBtns[i].classList.remove('active');
+      this.classList.add('active');
+      var panes = document.querySelectorAll('.tab-pane');
+      for (var i2 = 0; i2 < panes.length; i2++) panes[i2].classList.remove('active');
+      document.getElementById('tab-'+tab).classList.add('active');
+      if (tab === 'monthly') renderMonthlyOverview();
+    });
+  }
+
+  // Monthly share button (delegated on mhovContent)
+  document.getElementById('mhovContent').addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-share-acc][data-share-type="monthly"]');
+    if (btn) {
+      e.stopPropagation();
+      var acc2 = btn.getAttribute('data-share-acc');
+      var hist2 = getMonthlyHistory(acc2);
+      if (!hist2 || hist2.length === 0) return;
+      var payload2 = btoa(unescape(encodeURIComponent(JSON.stringify({account: acc2, weeks: hist2, period_type: 'monthly'}))));
+      var url2 = window.location.origin + window.location.pathname + '#view=' + payload2;
+      document.getElementById('shareUrl').textContent = url2;
+      document.getElementById('shareModal').classList.add('open');
+    }
+  });
 
   // -- Init ------------------------------------------------------------------
   var now=new Date();
