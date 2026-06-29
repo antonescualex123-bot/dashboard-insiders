@@ -1069,7 +1069,7 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
       html += '<div class="hov-acc">';
       html += '<div class="hov-acc-name">'+acc+' <span style="font-size:10px;font-weight:400;color:rgba(255,255,255,.3)">'+hist.length+' week'+(hist.length>1?'s':'')+'</span><button class="btn-share" data-share-acc="'+acc+'">&#128279; Share report</button></div>';
       html += '<div class="hov-table-wrap" style="border-radius:8px"><table class="hov-table"><thead><tr>';
-      html += '<th>Week</th><th>Spend</th><th>PPC Sales</th><th>Total Sales</th><th>PPC%</th><th>Orders</th><th>Clicks</th><th>CPC</th><th>CTR</th><th>ACOS</th><th>TACOS</th><th>CVR</th><th></th>';
+      html += '<th>Week</th><th>Spend</th><th>PPC Sales</th><th>Total Sales</th><th>PPC%</th><th>Orders</th><th>ACOS</th><th>TACOS</th><th>CVR</th><th></th>';
       html += '</tr></thead><tbody>';
 
       for (var hi = 0; hi < hist.length; hi++) {
@@ -1085,10 +1085,6 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
         var hPpcPct = (h.totalSales||0)>0 ? (h.ppcSales||0)/(h.totalSales||1)*100 : 0;
         html += '<td style="color:rgba(255,255,255,.9)">'+hPpcPct.toFixed(1)+'%</td>';
         html += '<td>'+fmtN(h.orders||0)+'</td>';
-        var hCpc = (h.clicks||0)>0 ? (h.spend||0)/(h.clicks||1) : 0;
-        html += '<td>'+fmtN(h.clicks||0)+'</td>';
-        html += '<td>&#8364;'+fmt(hCpc)+'</td>';
-        html += '<td>'+(((h.ctr||0)*100).toFixed(3))+'%</td>';
         html += '<td><span class="hov-tag '+acosCol+'">'+pct(h.acos||0)+'</span></td>';
         html += '<td><span class="hov-tag '+tacosCol+'">'+pct(h.tacos||0)+'</span></td>';
         html += '<td>'+pct(h.cvr||0)+'</td>';
