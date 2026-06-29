@@ -922,6 +922,34 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
     }
   }
 
+  // -- Auto-inject from URL hash (#inject=base64) ----------------------------
+  (function() {
+    try {
+      var hash = window.location.hash;
+      if (hash && hash.indexOf('#inject=') === 0) {
+        var b64 = hash.slice(8);
+        var json = JSON.parse(atob(b64));
+        var acc = json.account;
+        var entry = json.data;
+        // Save to history
+        var hist = [];
+        try { hist = JSON.parse(lsGet(historyKey(acc)) || '[]'); } catch(e) {}
+        hist = hist.filter(function(h){ return h.week !== entry.week; });
+        hist.push(entry);
+        hist.sort(function(a,b){ return a.week.localeCompare(b.week); });
+        if (hist.length > 52) hist = hist.slice(-52);
+        lsSet(historyKey(acc), JSON.stringify(hist));
+        // Ensure account is in list
+        var accs = [];
+        try { accs = JSON.parse(lsGet('ppc_accounts_b') || '[]'); } catch(e) {}
+        if (accs.indexOf(acc) === -1) { accs.push(acc); lsSet('ppc_accounts_b', JSON.stringify(accs)); }
+        // Clean URL and reload
+        history.replaceState(null, '', window.location.pathname);
+        window.location.reload();
+      }
+    } catch(e) { console.warn('inject error', e); }
+  })();
+
   // -- Init ------------------------------------------------------------------
   var now=new Date();
   var tmp=new Date(Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()));
