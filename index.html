@@ -141,6 +141,7 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
     <div class="modal-url" id="shareUrl"></div>
     <div class="modal-actions">
       <button class="btn-modal-copy" id="btnModalCopy">Copy link</button>
+      <button class="btn-modal-copy" id="btnModalShorten" style="background:#1f6feb">Shorten URL</button>
       <button class="btn-modal-close" id="btnModalClose">Close</button>
       <span class="modal-copied" id="modalCopied">Copied!</span>
     </div>
@@ -1134,6 +1135,30 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
       el.style.display = 'inline';
       setTimeout(function(){ el.style.display = 'none'; }, 2000);
     });
+  });
+
+  document.getElementById('btnModalShorten').addEventListener('click', function() {
+    var btn = this;
+    var url = document.getElementById('shareUrl').textContent;
+    btn.textContent = 'Shortening...';
+    btn.disabled = true;
+    fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(url))
+      .then(function(r){ return r.text(); })
+      .then(function(short) {
+        document.getElementById('shareUrl').textContent = short;
+        btn.textContent = 'Shorten URL';
+        btn.disabled = false;
+        // auto-copy
+        navigator.clipboard.writeText(short).then(function(){
+          var el = document.getElementById('modalCopied');
+          el.style.display = 'inline';
+          setTimeout(function(){ el.style.display = 'none'; }, 2000);
+        });
+      })
+      .catch(function() {
+        btn.textContent = 'Error — retry';
+        btn.disabled = false;
+      });
   });
 
   document.getElementById('btnModalClose').addEventListener('click', function() {
