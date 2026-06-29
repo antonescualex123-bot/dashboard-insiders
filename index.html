@@ -1176,26 +1176,136 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
   });
 
   // -- Report view (read-only for client) ------------------------------------
+  var _reportWeeks = [];
+  var _reportSelected = null;
+
+  function renderReportDetail(h, allWeeks) {
+    var html = '<div style="background:#0d1117;border:1px solid #30363d;border-top:none;border-radius:0 0 8px 8px;padding:16px 18px 18px;margin-bottom:2px">';
+    var acosTarget = 0.12;
+
+    // SP/SB/SD breakdown
+    if (h.breakdown && h.breakdown.length > 0) {
+      html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.35);letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px">Campaign breakdown</div>';
+      html += '<div style="overflow-x:auto;margin-bottom:18px"><table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums">';
+      var th = function(t){ return '<th style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:rgba(255,255,255,.3);padding:6px 10px;text-align:left;background:#161b22;border-bottom:1px solid #30363d;white-space:nowrap">'+t+'</th>'; };
+      html += '<thead><tr>'+th('Type')+th('Impr.')+th('Clicks')+th('Spend')+th('PPC Sales')+th('Orders')+th('ACOS')+th('CVR')+'</tr></thead><tbody>';
+      var ti=0,tc=0,ts=0,tsa=0,to=0;
+      for (var bi = 0; bi < h.breakdown.length; bi++) {
+        var r = h.breakdown[bi];
+        var a = r.sal>0?r.spd/r.sal:0, cv = r.clk>0?r.ord/r.clk:0;
+        html += '<tr><td style="font-size:12px;font-weight:600;color:#fff;padding:6px 10px;border-bottom:1px solid #21262d">'+r.label+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">'+fmtN(r.imp)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">'+fmtN(r.clk)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">&#8364;'+fmt(r.spd)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">&#8364;'+fmt(r.sal)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">'+fmtN(r.ord)+'</td>'+
+          '<td style="font-size:12px;font-weight:700;color:'+(a>0.2?'#f85149':a>=acosTarget?'#d29922':'#3fb950')+';padding:6px 10px;border-bottom:1px solid #21262d">'+pct(a)+'</td>'+
+          '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:6px 10px;border-bottom:1px solid #21262d">'+pct(cv)+'</td></tr>';
+        ti+=r.imp;tc+=r.clk;ts+=r.spd;tsa+=r.sal;to+=r.ord;
+      }
+      var ta=tsa>0?ts/tsa:0,tcv=tc>0?to/tc:0;
+      html += '<tr><td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">TOTAL</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">'+fmtN(ti)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">'+fmtN(tc)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">&#8364;'+fmt(ts)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">&#8364;'+fmt(tsa)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">'+fmtN(to)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:'+(ta>0.2?'#f85149':ta>=acosTarget?'#d29922':'#3fb950')+';padding:6px 10px">'+pct(ta)+'</td>'+
+        '<td style="font-size:12px;font-weight:700;color:#fff;padding:6px 10px">'+pct(tcv)+'</td></tr>';
+      html += '</tbody></table></div>';
+    }
+
+    // WoW trend (up to 4 weeks ending on selected, oldest→newest = left→right reversed)
+    var sorted = allWeeks.slice().sort(function(a,b){ return a.week.localeCompare(b.week); });
+    var idx = -1;
+    for (var si = 0; si < sorted.length; si++) { if (sorted[si].week === h.week) { idx = si; break; } }
+    var last4 = sorted.slice(Math.max(0, idx-3), idx+1).reverse();
+
+    if (last4.length >= 1) {
+      html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.35);letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px">Week-over-week trend</div>';
+      html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums">';
+      var thW = function(t,hl){ return '<th style="font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:'+(hl?'#fff':'rgba(255,255,255,.3)')+';padding:6px 10px;text-align:left;background:#161b22;border-bottom:1px solid #30363d;white-space:nowrap">'+t+'</th>'; };
+      var thead2 = '<thead><tr>'+thW('Metric');
+      for (var wi = 0; wi < last4.length; wi++) {
+        thead2 += thW(last4[wi].week+(last4[wi].week===h.week?' ✓':''), last4[wi].week===h.week);
+        if (wi < last4.length-1) thead2 += thW('Δ');
+      }
+      thead2 += '</tr></thead>';
+      html += thead2 + '<tbody>';
+
+      var metrics = [
+        {lbl:'Spend',      key:'spend',      f:'e',gu:false},
+        {lbl:'PPC Sales',  key:'ppcSales',   f:'e',gu:true},
+        {lbl:'Total Sales',key:'totalSales', f:'e',gu:true},
+        {lbl:'Orders',     key:'orders',     f:'n',gu:true},
+        {lbl:'Clicks',     key:'clicks',     f:'n',gu:true},
+        {lbl:'CPC',        key:'cpc',        f:'e',gu:false},
+        {lbl:'CTR',        key:'ctr',        f:'p',gu:true},
+        {lbl:'ACOS',       key:'acos',       f:'p',gu:false},
+        {lbl:'TACOS',      key:'tacos',      f:'p',gu:false},
+        {lbl:'CVR',        key:'cvr',        f:'p',gu:true},
+      ];
+
+      for (var mi = 0; mi < metrics.length; mi++) {
+        var m = metrics[mi];
+        html += '<tr><td style="font-size:12px;font-weight:600;color:#fff;padding:6px 10px;border-bottom:1px solid #21262d">'+m.lbl+'</td>';
+        for (var wi2 = 0; wi2 < last4.length; wi2++) {
+          var wk = last4[wi2];
+          var val = m.key==='cpc'?(wk.clicks>0?wk.spend/wk.clicks:0):(wk[m.key]||0);
+          var isCW2 = wk.week===h.week;
+          var fv = m.f==='e'?'&#8364;'+fmt(val):m.f==='p'?pct(val):fmtN(val);
+          html += '<td style="font-size:12px;padding:6px 10px;border-bottom:1px solid #21262d;'+(isCW2?'color:#fff;font-weight:600':'color:rgba(255,255,255,.55)')+'">'+fv+'</td>';
+          if (wi2 < last4.length-1) {
+            var nwk = last4[wi2+1];
+            var pv2 = m.key==='cpc'?(nwk.clicks>0?nwk.spend/nwk.clicks:0):(nwk[m.key]||0);
+            var delta = pv2>0?(val/pv2-1):0;
+            var isUp=delta>0.005,isDn=delta<-0.005;
+            var imp3=(isUp&&m.gu)||(isDn&&!m.gu), wrs3=(isDn&&m.gu)||(isUp&&!m.gu);
+            var cls3=imp3?'tag-g':wrs3?'tag-r':'tag-n';
+            var txt3=isUp?('+'+pct(delta)):isDn?pct(delta):'&#8212;';
+            html += '<td style="padding:6px 10px;border-bottom:1px solid #21262d"><span class="tag '+cls3+'">'+txt3+'</span></td>';
+          }
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   function renderReportView(acc, weeks) {
-    var tgt = {acos: 12, tacos: 5}; // defaults for client view
+    _reportWeeks = weeks;
+    _reportSelected = null;
     weeks.sort(function(a,b){ return b.week.localeCompare(a.week); });
 
     document.getElementById('reportTitle').textContent = acc + ' — PPC Weekly Report';
-    document.getElementById('reportSub').textContent = weeks.length + ' week' + (weeks.length>1?'s':'') + ' · Generated by Insiders Agency';
+    document.getElementById('reportSub').textContent = weeks.length + ' week' + (weeks.length>1?'s':'') + ' · Generated by Insiders Agency · Click a row for details';
 
     var thS = function(t){ return '<th style="font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:rgba(255,255,255,.3);padding:8px 14px;text-align:left;background:#0d1117;border-bottom:1px solid #30363d;white-space:nowrap">'+t+'</th>'; };
     var html = '<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden;overflow-x:auto">';
-    html += '<table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums"><thead><tr>';
+    html += '<table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums" id="reportTable"><thead><tr>';
     html += thS('Week')+thS('Spend')+thS('PPC Sales')+thS('Total Sales')+thS('Orders')+thS('Clicks')+thS('CPC')+thS('CTR')+thS('ACOS')+thS('TACOS')+thS('CVR');
-    html += '</tr></thead><tbody>';
+    html += '</tr></thead><tbody id="reportTbody"></tbody></table></div>';
+    html += '<div id="reportDetailPanel"></div>';
 
+    document.getElementById('reportContent').innerHTML = html;
+    renderReportRows(acc, weeks);
+    document.getElementById('reportView').classList.add('open');
+  }
+
+  function renderReportRows(acc, weeks) {
+    var tbody = document.getElementById('reportTbody');
+    if (!tbody) return;
+    var html = '';
     for (var i = 0; i < weeks.length; i++) {
       var h = weeks[i];
+      var isOpen = _reportSelected === h.week;
       var acosCol = h.acos > 0.2 ? '#f85149' : h.acos > 0.12 ? '#d29922' : '#3fb950';
       var tacosCol = h.tacos > 0.1 ? '#f85149' : h.tacos > 0.05 ? '#d29922' : '#3fb950';
       var cpc = (h.clicks||0)>0 ? (h.spend||0)/(h.clicks||1) : 0;
-      html += '<tr style="border-bottom:1px solid #21262d">';
-      html += '<td style="font-size:12px;font-weight:600;color:#fff;padding:9px 14px">'+h.week+'</td>';
+      html += '<tr class="report-row" data-week="'+h.week+'" style="cursor:pointer;border-bottom:1px solid #21262d;'+(isOpen?'background:rgba(88,166,255,.05)':'')+'">';
+      html += '<td style="font-size:12px;font-weight:600;color:#58a6ff;padding:9px 14px">'+h.week+(isOpen?' ▲':' ▼')+'</td>';
       html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">&#8364;'+fmt(h.spend||0)+'</td>';
       html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">&#8364;'+fmt(h.ppcSales||0)+'</td>';
       html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">&#8364;'+fmt(h.totalSales||0)+'</td>';
@@ -1208,9 +1318,25 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
       html += '<td style="font-size:12px;color:rgba(255,255,255,.7);padding:9px 14px">'+(((h.cvr||0)*100).toFixed(1))+'%</td>';
       html += '</tr>';
     }
-    html += '</tbody></table></div>';
-    document.getElementById('reportContent').innerHTML = html;
-    document.getElementById('reportView').classList.add('open');
+    tbody.innerHTML = html;
+
+    var detailPanel = document.getElementById('reportDetailPanel');
+    if (_reportSelected) {
+      var sel = null;
+      for (var j = 0; j < weeks.length; j++) { if (weeks[j].week === _reportSelected) { sel = weeks[j]; break; } }
+      if (sel) detailPanel.innerHTML = renderReportDetail(sel, weeks);
+    } else {
+      detailPanel.innerHTML = '';
+    }
+
+    var rows = tbody.querySelectorAll('.report-row');
+    for (var ri = 0; ri < rows.length; ri++) {
+      rows[ri].addEventListener('click', function() {
+        var w = this.getAttribute('data-week');
+        _reportSelected = (_reportSelected === w) ? null : w;
+        renderReportRows(acc, weeks);
+      });
+    }
   }
 
   // Check for #view= on load
