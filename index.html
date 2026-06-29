@@ -1004,6 +1004,7 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
         {lbl:'Spend',      key:'spend',      f:'e',gu:false},
         {lbl:'PPC Sales',  key:'ppcSales',   f:'e',gu:true},
         {lbl:'Total Sales',key:'totalSales', f:'e',gu:true},
+        {lbl:'PPC%',       key:'ppcpct',     f:'p',gu:true},
         {lbl:'Orders',     key:'orders',     f:'n',gu:true},
         {lbl:'Clicks',     key:'clicks',     f:'n',gu:true},
         {lbl:'CPC',        key:'cpc',        f:'e',gu:false},
@@ -1018,7 +1019,7 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
         html += '<tr><td style="font-size:12px;font-weight:600;color:#fff;padding:6px 10px;border-bottom:1px solid #21262d">'+m.lbl+'</td>';
         for (var wi2 = 0; wi2 < last4.length; wi2++) {
           var wk = last4[wi2];
-          var val = m.key==='cpc'?(wk.clicks>0?wk.spend/wk.clicks:0):(wk[m.key]||0);
+          var val = m.key==='cpc'?(wk.clicks>0?wk.spend/wk.clicks:0):m.key==='ppcpct'?(wk.totalSales>0?wk.ppcSales/wk.totalSales:0):(wk[m.key]||0);
           var isCW2 = wk.week===week;
           var fv = m.f==='e'?'&#8364;'+fmt(val):m.f==='p'?pct(val):fmtN(val);
           html += '<td style="font-size:12px;padding:6px 10px;border-bottom:1px solid #21262d;'+(isCW2?'color:#fff;font-weight:600':'color:rgba(255,255,255,.55)')+'">'+fv+'</td>';
@@ -1068,7 +1069,7 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
       html += '<div class="hov-acc">';
       html += '<div class="hov-acc-name">'+acc+' <span style="font-size:10px;font-weight:400;color:rgba(255,255,255,.3)">'+hist.length+' week'+(hist.length>1?'s':'')+'</span><button class="btn-share" data-share-acc="'+acc+'">&#128279; Share report</button></div>';
       html += '<div class="hov-table-wrap" style="border-radius:8px"><table class="hov-table"><thead><tr>';
-      html += '<th>Week</th><th>Spend</th><th>PPC Sales</th><th>Total Sales</th><th>Orders</th><th>Clicks</th><th>CPC</th><th>CTR</th><th>ACOS</th><th>TACOS</th><th>CVR</th><th></th>';
+      html += '<th>Week</th><th>Spend</th><th>PPC Sales</th><th>Total Sales</th><th>PPC%</th><th>Orders</th><th>Clicks</th><th>CPC</th><th>CTR</th><th>ACOS</th><th>TACOS</th><th>CVR</th><th></th>';
       html += '</tr></thead><tbody>';
 
       for (var hi = 0; hi < hist.length; hi++) {
@@ -1081,6 +1082,8 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
         html += '<td>&#8364;'+fmt(h.spend||0)+'</td>';
         html += '<td>&#8364;'+fmt(h.ppcSales||0)+'</td>';
         html += '<td>&#8364;'+fmt(h.totalSales||0)+'</td>';
+        var hPpcPct = (h.totalSales||0)>0 ? (h.ppcSales||0)/(h.totalSales||1)*100 : 0;
+        html += '<td style="color:rgba(255,255,255,.9)">'+hPpcPct.toFixed(1)+'%</td>';
         html += '<td>'+fmtN(h.orders||0)+'</td>';
         var hCpc = (h.clicks||0)>0 ? (h.spend||0)/(h.clicks||1) : 0;
         html += '<td>'+fmtN(h.clicks||0)+'</td>';
@@ -1281,6 +1284,7 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
         {lbl:'Spend',      key:'spend',      f:'e',gu:false},
         {lbl:'PPC Sales',  key:'ppcSales',   f:'e',gu:true},
         {lbl:'Total Sales',key:'totalSales', f:'e',gu:true},
+        {lbl:'PPC%',       key:'ppcpct',     f:'p',gu:true},
         {lbl:'Orders',     key:'orders',     f:'n',gu:true},
         {lbl:'Clicks',     key:'clicks',     f:'n',gu:true},
         {lbl:'CPC',        key:'cpc',        f:'e',gu:false},
@@ -1295,7 +1299,7 @@ tbody tr:hover td{background:rgba(255,255,255,.02)}
         html += '<tr><td style="font-size:12px;font-weight:600;color:#fff;padding:6px 10px;border-bottom:1px solid #21262d">'+m.lbl+'</td>';
         for (var wi2 = 0; wi2 < last4.length; wi2++) {
           var wk = last4[wi2];
-          var val = m.key==='cpc'?(wk.clicks>0?wk.spend/wk.clicks:0):(wk[m.key]||0);
+          var val = m.key==='cpc'?(wk.clicks>0?wk.spend/wk.clicks:0):m.key==='ppcpct'?(wk.totalSales>0?wk.ppcSales/wk.totalSales:0):(wk[m.key]||0);
           var isCW2 = wk.week===h.week;
           var fv = m.f==='e'?'&#8364;'+fmt(val):m.f==='p'?pct(val):fmtN(val);
           html += '<td style="font-size:12px;padding:6px 10px;border-bottom:1px solid #21262d;'+(isCW2?'color:#fff;font-weight:600':'color:rgba(255,255,255,.55)')+'">'+fv+'</td>';
